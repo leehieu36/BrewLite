@@ -4,18 +4,27 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import { useApp } from "@/context/AppContext";
 import { order, pay } from "@/lib/api";
 import type { Method } from "@/lib/types";
 
 const money = (n: number) => n.toLocaleString("vi-VN") + "đ";
+const paymentOptions: { method: Method; title: string; description: string }[] = [
+  { method: "COD", title: "Thanh toán khi nhận hàng", description: "Trả tiền mặt khi nhận đồ uống." },
+  { method: "BANK_TRANSFER", title: "Chuyển khoản ngân hàng", description: "Quét mã QR chuyển khoản." },
+  { method: "VNPAY", title: "Ví VNPay", description: "Quét mã QR bằng ứng dụng VNPay." },
+  { method: "MOMO", title: "Ví MoMo", description: "Quét mã QR bằng ứng dụng MoMo." },
+];
 
 export default function Checkout() {
   const { cart, total, token, clear } = useApp();
-  const [method, M] = useState<Method>("MOCK");
+  const [method, M] = useState<Method>("COD");
   const [error, E] = useState("");
   const [busy, B] = useState(false);
   const router = useRouter();
+  const selectedPayment = paymentOptions.find((option) => option.method === method)!;
+  const qrValue = `BREWLITE|${method}|${total}|VND|PAYMENT`;
 
   async function place() {
     E("");
@@ -49,15 +58,18 @@ export default function Checkout() {
         throw Error("API tạo đơn chưa trả về id.");
       }
 
-      const p = await pay(id, method, token);
-      const status = String(p.status ?? "PAID");
+      const status = method === "COD" ? "PENDING" : "PAID";
+      if (method !== "COD") {
+        await pay(id, method, token);
+      }
 
       localStorage.setItem(
         "bl_last_order",
         JSON.stringify({
           id,
           status,
-          total,
+          method,
+          total: Number(o.total ?? total),
           createdAt: new Date().toISOString(),
         })
       );
@@ -85,19 +97,35 @@ export default function Checkout() {
         <section className="summary">
           <h2>Phương thức thanh toán</h2>
 
-          {(["MOCK", "COD"] as Method[]).map((m) => (
+          <div className="payment-options">
+          {paymentOptions.map((option) => (
             <button
-              key={m}
+              key={option.method}
               type="button"
-              className={`payoption ${method === m ? "selected" : ""}`}
-              onClick={() => M(m)}
+              className={`payoption ${method === option.method ? "selected" : ""}`}
+              onClick={() => M(option.method)}
             >
-              {m === "MOCK"
-                ? "◈ Thanh toán thử nghiệm"
-                : "▤ Thanh toán khi nhận hàng"}
-              <span>{method === m ? "●" : "○"}</span>
+              <span className="payoption-copy">
+                <strong>{option.title}</strong>
+                <small>{option.description}</small>
+              </span>
+              <span aria-hidden="true">{method === option.method ? "●" : "○"}</span>
             </button>
           ))}
+          </div>
+
+          {method !== "COD" && (
+            <div className="qr-panel">
+              <h3>Quét mã {selectedPayment.title}</h3>
+              <div className="qr-code">
+                <QRCodeSVG value={qrValue} size={196} level="M" title={`Mã QR ${selectedPayment.title}`} />
+              </div>
+              <p className="qr-amount">Số tiền: <strong>{money(total)}</strong></p>
+              <p className="payment-instruction">
+                Quét mã bằng ứng dụng {selectedPayment.title}, sau đó xác nhận đã chuyển khoản.
+              </p>
+            </div>
+          )}
 
           {error && <p className="error">{error}</p>}
 
@@ -107,7 +135,11 @@ export default function Checkout() {
             onClick={place}
             disabled={busy || !cart.length}
           >
-            {busy ? "Đang xử lý..." : "Đặt hàng & thanh toán ↗"}
+            {busy
+              ? "Đang xử lý..."
+              : method === "COD"
+                ? "Đặt hàng, thanh toán khi nhận ↗"
+                : "Tôi đã chuyển khoản, xác nhận ↗"}
           </button>
 
           {!token && (

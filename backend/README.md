@@ -80,10 +80,10 @@ Idempotency-Key: checkout-demo-0001
 Dùng một khóa mới cho mỗi lần thanh toán riêng biệt. Nội dung yêu cầu:
 
 ```json
-{"orderId":"<order-id-from-create-order>","method":"MOCK"}
+{"orderId":"<order-id-from-create-order>","method":"VNPAY"}
 ```
 
-`MOCK` và `COD` là các phương thức mô phỏng, không trừ tiền từ thẻ hoặc tài khoản ngân hàng thật. Khi thanh toán mô phỏng thành công, trạng thái đơn hàng chuyển từ `PENDING` sang `PAID`; người dùng được cộng 1 điểm tích lũy cho mỗi 10.000 VND. Khóa chống trùng được đặt duy nhất trong cơ sở dữ liệu để bảo vệ các lần gửi lại yêu cầu.
+Frontend hỗ trợ `COD`, `BANK_TRANSFER`, `VNPAY` và `MOMO`. COD tạo đơn ở trạng thái `PENDING`, thanh toán khi nhận hàng. Các phương thức chuyển khoản/ví hiện chỉ hiển thị QR minh họa và được backend mô phỏng thành công; chúng chưa kết nối ngân hàng, VNPay hoặc MoMo và không nhận tiền thật. Khi thanh toán mô phỏng thành công, trạng thái đơn hàng chuyển từ `PENDING` sang `PAID`; người dùng được cộng 1 điểm tích lũy cho mỗi 10.000 VND. Khóa chống trùng được đặt duy nhất trong cơ sở dữ liệu để bảo vệ các lần gửi lại yêu cầu.
 
 ## 4. Quy trình trạng thái đơn hàng
 

@@ -11,12 +11,23 @@ function Content() {
     } catch { }
   }, []);
   const id = p.get("id") || saved?.id || "—", status = p.get("status") || saved?.status || "PENDING";
+  const title = status === "PAYMENT_FAILED"
+    ? "Thanh toán chưa thành công"
+    : status === "PENDING"
+      ? "Đơn hàng đã được tiếp nhận"
+      : "Đặt hàng thành công!";
   return <div className="confirmation">
     <div className="check">✓</div>
     <small>ORDER RECEIVED</small>
-    <h1>{status === "PAYMENT_FAILED" ? "Thanh toán chưa thành công" : "Đặt hàng thành công!"}
+    <h1>{title}
     </h1>
-    <p>Cảm ơn bạn đã chọn BrewLite. Vui lòng theo dõi trạng thái đơn hàng.</p>
+    <p>
+      {status === "PENDING"
+        ? "Cảm ơn bạn đã chọn BrewLite. Vui lòng thanh toán khi nhận đơn hàng."
+        : status === "PAID" && saved?.method !== "COD"
+          ? "Bạn đã xác nhận thanh toán. Vui lòng theo dõi trạng thái đơn hàng."
+          : "Cảm ơn bạn đã chọn BrewLite. Vui lòng theo dõi trạng thái đơn hàng."}
+    </p>
     <div className="confirmdetail">
       <p>Mã đơn hàng <b>#{id}
       </b>
