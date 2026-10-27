@@ -8,7 +8,7 @@ export default function Header() {
     </Link>
     <nav>
       <Link href="/">Thực đơn</Link>
-      <Link href="/orders">Đơn hàng</Link>
+      <Link href="/orders">Lịch sử đơn hàng</Link>
       <Link href="/cart">Giỏ hàng <b>{count}
       </b>
       </Link>{token ? <button onClick={() => {

@@ -1,5 +1,5 @@
 export type Size = "S" | "M" | "L";
-export type Method = "MOCK" | "COD";
+export type Method = "COD" | "BANK_TRANSFER" | "VNPAY" | "MOMO";
 
 export type Product = {
   id: string;
@@ -26,4 +26,26 @@ export type Order = {
   status: string;
   total?: number;
   createdAt?: string;
+  items?: OrderItem[];
+  payments?: Payment[];
+};
+
+export type OrderItem = {
+  id: string;
+  qty: number;
+  size: Size;
+  toppings: string[];
+  unitPrice: number;
+  lineTotal: number;
+  product: {
+    name: string;
+  };
+};
+
+export type Payment = {
+  id: string;
+  amount: number;
+  method: Method;
+  status: string;
+  createdAt: string;
 };

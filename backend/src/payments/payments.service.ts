@@ -19,13 +19,13 @@ export class PaymentsService {
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     if (order.status !== OrderStatus.PENDING) throw new BadRequestException(`Đơn hàng đang ở trạng thái ${order.status}, không thể thanh toán`);
     if (order.payments.some(p => p.status === PaymentStatus.SUCCEEDED)) throw new ConflictException('Đơn hàng đã thanh toán');
-    // MOCK/COD only: no real payment provider is contacted. Replace this block with a provider integration before production.
+    // All online methods are simulated until real bank, VNPay, or MoMo credentials are configured.
     try {
       return await this.prisma.$transaction(async (tx) => {
         // Compare-and-set makes only one concurrent payment attempt win for a pending order.
         const claimed = await tx.order.updateMany({ where: { id: order.id, userId, status: OrderStatus.PENDING }, data: { status: OrderStatus.PAID } });
         if (claimed.count !== 1) throw new BadRequestException('Đơn hàng không còn ở trạng thái chờ thanh toán');
-        const payment = await tx.payment.create({ data: { orderId: order.id, idempotencyKey: key, amount: order.total, method: dto.method, status: PaymentStatus.SUCCEEDED, providerRef: `MOCK-${Date.now()}` } });
+        const payment = await tx.payment.create({ data: { orderId: order.id, idempotencyKey: key, amount: order.total, method: dto.method, status: PaymentStatus.SUCCEEDED, providerRef: `DEMO-${dto.method}-${Date.now()}` } });
         // Simple loyalty rule: 1 point per 10,000 VND, credited once after successful mock payment.
         const points = Math.floor(order.total / 10000);
         if (points > 0) await tx.user.update({ where: { id: userId }, data: { loyaltyPoints: { increment: points } } });

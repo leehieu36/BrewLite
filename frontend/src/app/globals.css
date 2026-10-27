@@ -457,14 +457,56 @@ button{
   width:100%;
   display:flex;
   justify-content:space-between;
+  align-items:center;
   padding:17px;
   margin:10px 0;
   background:transparent;
   border:1px solid var(--line)
 }
+.payoption-copy{
+  display:grid;
+  gap:5px;
+  text-align:left
+}
+.payoption-copy strong{
+  font-size:13px
+}
+.payoption-copy small{
+  color:var(--muted);
+  font-size:11px
+}
 .payoption.selected{
   background:#e2e9dd;
   border-color:var(--green)
+}
+.qr-panel{
+  margin-top:22px;
+  padding:18px;
+  text-align:center;
+  background:#f7f4ed;
+  border:1px solid var(--line)
+}
+.qr-panel h3{
+  margin:0 0 15px;
+  font:400 18px Georgia,serif
+}
+.qr-code{
+  display:inline-flex;
+  padding:12px;
+  background:#fff;
+  border:1px solid var(--line)
+}
+.qr-amount{
+  justify-content:center!important;
+  margin:14px 0 8px;
+  color:var(--ink)!important
+}
+.payment-instruction{
+  display:block!important;
+  margin:0!important;
+  color:#8a542e!important;
+  font-size:11px!important;
+  line-height:1.6
 }
 .confirmation{
   max-width:650px;
@@ -504,23 +546,111 @@ button{
   border-bottom:1px solid var(--line);
   padding:7px 0
 }
-.orders article{
+.orders-heading{
   display:flex;
+  align-items:center;
   justify-content:space-between;
+  gap:20px
+}
+.orders-heading p{
+  color:var(--muted);
+  font-size:14px
+}
+.orders-refresh,.orders-error button{
+  border:1px solid var(--line);
+  background:var(--paper);
+  color:var(--green);
+  padding:11px 15px;
+  font-size:12px;
+  font-weight:bold
+}
+.orders-refresh:disabled{
+  cursor:wait;
+  opacity:.65
+}
+.orders-error button{
+  margin-top:8px
+}
+.order-card{
   background:var(--paper);
   border:1px solid var(--line);
-  padding:22px;
-  margin:12px 0
+  margin:18px 0
 }
-.orders small{
+.order-card-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:20px 22px;
+  border-bottom:1px solid var(--line)
+}
+.order-card-header small{
   color:var(--orange)
 }
-.orders h3{
-  font:400 20px Georgia,serif
+.order-card-header h2{
+  margin:7px 0;
+  font:400 20px Georgia,serif;
+  overflow-wrap:anywhere
 }
-.orders p{
+.order-card-header p,.order-item p{
+  margin:0;
   font-size:11px;
   color:var(--muted)
+}
+.order-status{
+  flex:none;
+  padding:8px 11px;
+  border-radius:20px;
+  background:#e2e9dd;
+  color:var(--green);
+  font-size:11px;
+  font-weight:bold
+}
+.status-pending,.status-payment_failed,.status-cancelled{
+  background:#fbe8e3;
+  color:#9d3e2d
+}
+.order-items{
+  padding:4px 22px
+}
+.order-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  padding:14px 0;
+  border-bottom:1px solid var(--line)
+}
+.order-item strong,.order-item b{
+  font-size:13px
+}
+.order-item p{
+  margin-top:5px
+}
+.order-card-footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:18px;
+  padding:16px 22px
+}
+.order-card-footer div{
+  display:grid;
+  gap:5px
+}
+.order-card-footer span{
+  color:var(--muted);
+  font-size:11px
+}
+.order-card-footer strong{
+  font-size:12px
+}
+.order-card-footer .order-total{
+  text-align:right
+}
+.order-total strong{
+  color:var(--green);
+  font-size:16px
 }
 footer{
   text-align:center;
@@ -634,6 +764,28 @@ footer{
 }
 .confirmation h1{
   font-size:32px
+}
+.orders-heading{
+  align-items:flex-start
+}
+.orders-refresh{
+  flex:none
+}
+.order-card-header{
+  align-items:flex-start;
+  flex-direction:column;
+  padding:16px
+}
+.order-items{
+  padding:4px 16px
+}
+.order-card-footer{
+  align-items:flex-start;
+  flex-direction:column;
+  padding:15px 16px
+}
+.order-card-footer .order-total{
+  text-align:left
 }
 
 }
