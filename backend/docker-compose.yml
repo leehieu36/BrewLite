@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brew
+      POSTGRES_PASSWORD: brew_dev_password
+      POSTGRES_DB: brewlite
+    ports:
+      - "5432:5432"
+    volumes:
+      - brewlite_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brew -d brewlite"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://brew:brew_dev_password@db:5432/brewlite?schema=public
+      JWT_SECRET: ${JWT_SECRET:-local_dev_only_change_me_please_0123456789}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      PORT: 3001
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  brewlite_pgdata:
