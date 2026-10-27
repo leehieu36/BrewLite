@@ -1,0 +1,2 @@
+ALTER TABLE "OrderItem"
+ADD COLUMN "toppings" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

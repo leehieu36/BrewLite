@@ -1,0 +1,10 @@
+{
+  "name": "BrewLite - Coffee & Tea",
+  "short_name": "BrewLite",
+  "description": "Đặt đồ uống với BrewLite",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf4",
+  "theme_color": "#4b2e22",
+  "lang": "vi"
+}
