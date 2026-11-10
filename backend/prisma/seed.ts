@@ -29,26 +29,23 @@ async function main() {
 
   console.log(`Seeded ${products.length} products`);
 
-  // =========================
-  // 2. SEED TEST ACCOUNTS
-  // =========================
   const accounts = [
     {
       email: 'khachhang@gmail.com',
-      password: 'Customer123!',
-      name: 'Khách hàng test',
+      password: 'khach123456',
+      name: 'Lê Ngọc Hiếu',
       role: UserRole.CUSTOMER,
     },
     {
       email: 'nhanvien@gmail.com',
-      password: 'Staff123!',
-      name: 'Nhân viên test',
+      password: 'nhanvien123456',
+      name: 'Nguyễn Tiến Đạt',
       role: UserRole.STAFF,
     },
     {
       email: 'admin@gmail.com',
-      password: 'Admin123!',
-      name: 'Quản trị viên test',
+      password: 'admin123456',
+      name: 'Quản trị viên',
       role: UserRole.ADMIN,
     },
   ];
