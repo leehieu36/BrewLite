@@ -1,5 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+
+import { PrismaClient, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+
 const prisma = new PrismaClient();
+
 async function main() {
   const products = [
     { name: 'Cà phê sữa đá', description: 'Cà phê Việt Nam đậm vị, dùng cùng sữa đặc.', price: 29000, stock: 50, imageUrl: null },
@@ -8,13 +12,74 @@ async function main() {
     { name: 'Trà đào cam sả', description: 'Trà trái cây thanh mát.', price: 39000, stock: 30, imageUrl: null },
     { name: 'Matcha latte', description: 'Matcha kết hợp sữa.', price: 42000, stock: 25, imageUrl: null },
   ];
-  for (const p of products) await prisma.product.upsert({
-    where: { id: `seed-${p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` }, update: {
-      name: p.name,
-      description: p.description,
-      price: p.price,
-    }, create: { ...p, id: `seed-${p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` }
-  });
+
+  for (const p of products) {
+    const id = `seed-${p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+    await prisma.product.upsert({
+      where: { id },
+      update: {
+        name: p.name,
+        description: p.description,
+        price: p.price,
+      },
+      create: { ...p, id },
+    });
+  }
+
   console.log(`Seeded ${products.length} products`);
+
+  // =========================
+  // 2. SEED TEST ACCOUNTS
+  // =========================
+  const accounts = [
+    {
+      email: 'khachhang@gmail.com',
+      password: 'Customer123!',
+      name: 'Khách hàng test',
+      role: UserRole.CUSTOMER,
+    },
+    {
+      email: 'nhanvien@gmail.com',
+      password: 'Staff123!',
+      name: 'Nhân viên test',
+      role: UserRole.STAFF,
+    },
+    {
+      email: 'admin@gmail.com',
+      password: 'Admin123!',
+      name: 'Quản trị viên test',
+      role: UserRole.ADMIN,
+    },
+  ];
+
+  for (const account of accounts) {
+    const passwordHash = await bcrypt.hash(account.password, 12);
+
+    await prisma.user.upsert({
+      where: { email: account.email },
+      update: {
+        passwordHash,
+        name: account.name,
+        role: account.role,
+      },
+      create: {
+        email: account.email,
+        passwordHash,
+        name: account.name,
+        role: account.role,
+      },
+    });
+  }
+
+  console.log(`Seeded ${accounts.length} test accounts`);
 }
-main().finally(() => prisma.$disconnect());
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
