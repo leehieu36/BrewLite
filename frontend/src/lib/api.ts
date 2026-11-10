@@ -192,3 +192,33 @@ export async function updateOrderStatus(token: string, orderId: string, status: 
     body: JSON.stringify({ status }),
   }, token);
 }
+export type UserProfile = {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  address: string | null;
+  role: string;
+  loyaltyPoints: number;
+  createdAt: string;
+};
+
+export const getMyProfile = (token: string) =>
+  req<UserProfile>('/auth/me', {}, token);
+
+export const updateMyProfile = (
+  token: string,
+  data: {
+    name?: string;
+    phone?: string;
+    address?: string;
+  },
+) =>
+  req<UserProfile>(
+    '/auth/me',
+    {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    },
+    token,
+  );
