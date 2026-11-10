@@ -1,68 +1,222 @@
+
 "use client";
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { products } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
 import type { Product, Size } from "@/lib/types";
+
 const money = (n: number) => n.toLocaleString("vi-VN") + "đ";
+
+const toppings = [
+  "Trân châu",
+  "Kem cheese",
+  "Thạch cà phê",
+];
+
 export default function Detail() {
-  const { id } = useParams<{
-    id: string;
-  }>(), router = useRouter(), { add } = useApp();
-  const [p, P] = useState<Product | null>(null), [size, S] = useState<Size>("M"), [tops, T] = useState<string[]>([]), [q, Q] = useState(1), [msg, M] = useState(""), [loading, B] = useState(true);
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { add, role } = useApp();
+
+  const [product, setProduct] = useState<Product | null>(null);
+  const [size, setSize] = useState<Size>("M");
+  const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
+  const [quantity, setQuantity] = useState(1);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    products().then(x => P(x.list.find(a => a.id === id) || null)).finally(() => B(false));
+    let active = true;
+
+    products()
+      .then((result) => {
+        if (active) {
+          setProduct(result.list.find((item) => item.id === id) || null);
+        }
+      })
+      .catch(() => {
+        if (active) setProduct(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [id]);
-  if (loading) return <div className="state">Đang tải sản phẩm...</div>;
-  if (!p) return <div className="wrap state">Không tìm thấy sản phẩm. <Link href="/">Quay lại menu</Link>
-  </div>;
-  const total = (p.price + (size === "S" ? 0 : size === "M" ? 5000 : 10000) + tops.length * 7000) * q;
-  const toggle = (t: string) => T(a => a.includes(t) ? a.filter(x => x !== t) : [...a, t]);
-  return <div className="wrap detail">
-    <div className="detailimg">{p.image && <img src={p.image} alt={p.name} />}
-    </div>
-    <section>
-      <Link href="/">← Quay lại thực đơn</Link>
-      <small>{p.category || "OUR MENU"}
-      </small>
-      <h1>{p.name}
-      </h1>
-      <p>{p.description}
-      </p>
-      <h3>{money(p.price)} <small>giá size S</small>
-      </h3>
-      <hr />
-      <h3>Chọn size</h3>
-      <div className="choices">{(["S", "M", "L"] as Size[]).map(s => <button className={size === s ? "selected" : ""} onClick={() => S(s)} key={s}>{s}
-        <small>{s === "S" ? "Nhỏ" : s === "M" ? "Vừa +5k" : "Lớn +10k"}
+
+  const toggleTopping = (topping: string) => {
+    setSelectedToppings((current) =>
+      current.includes(topping)
+        ? current.filter((item) => item !== topping)
+        : [...current, topping]
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="wrap">
+        <p className="state">Đang tải sản phẩm...</p>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="wrap state">
+        Không tìm thấy sản phẩm.
+        {" "}
+        <Link href="/">Quay lại thực đơn</Link>
+      </div>
+    );
+  }
+
+  const isCustomer = role === "CUSTOMER";
+  const sizeExtra = size === "S" ? 0 : size === "M" ? 5000 : 10000;
+  const total =
+    (product.price + sizeExtra + selectedToppings.length * 7000) *
+    quantity;
+
+  return (
+    <div className="wrap detail">
+      <div className="detailimg">
+        {product.image && (
+          <img src={product.image} alt={product.name} />
+        )}
+      </div>
+
+      <section>
+        <Link href="/" className="detail-back">
+          ← Quay lại thực đơn
+        </Link>
+
+        <small className="detail-category">
+          {product.category || "ĐỒ UỐNG"}
         </small>
-      </button>)}
-      </div>
-      <hr />
-      <h3>Topping thêm <small>+7.000đ / topping</small>
-      </h3>{["Trân châu", "Kem cheese", "Thạch cà phê"].map(t => <label className="topping" key={t}>
-        <input type="checkbox" checked={tops.includes(t)} onChange={() => toggle(t)} />{t}
-        <span>+7k</span>
-      </label>)}
-      <hr />
-      <div className="quantity">
-        <b>Số lượng</b>
-        <div>
-          <button onClick={() => Q(a => Math.max(1, a - 1))}>−</button>{q}
-          <button onClick={() => Q(a => a + 1)}>+</button>
-        </div>
-      </div>
-      <div className="total">
-        <span>Tạm tính</span>
-        <b>{money(total)}
-        </b>
-      </div>
-      <button className="btn wide" onClick={() => {
-        add(p, size, tops, q);
-        M("Đã thêm vào giỏ hàng.");
-      }}>Thêm vào giỏ hàng ↗</button>{msg && <p className="success">{msg} <button onClick={() => router.push("/cart")}>Xem giỏ hàng</button>
-      </p>}
-    </section>
-  </div>;
+
+        <h1>{product.name}</h1>
+
+        <p>{product.description}</p>
+
+        <h3>
+          {money(product.price)}
+          <small> · Giá size S</small>
+        </h3>
+
+        {isCustomer ? (
+          <>
+            <hr />
+
+            <h3>Chọn kích cỡ</h3>
+
+            <div className="choices">
+              {(["S", "M", "L"] as Size[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={size === item ? "selected" : ""}
+                  onClick={() => setSize(item)}
+                >
+                  {item}
+                  <small>
+                    {item === "S"
+                      ? "Nhỏ"
+                      : item === "M"
+                        ? "+5.000đ"
+                        : "+10.000đ"}
+                  </small>
+                </button>
+              ))}
+            </div>
+
+            <hr />
+
+            <h3>Thêm topping</h3>
+            <p className="detail-hint">7.000đ cho mỗi loại topping</p>
+
+            {toppings.map((topping) => (
+              <label className="topping" key={topping}>
+                <input
+                  type="checkbox"
+                  checked={selectedToppings.includes(topping)}
+                  onChange={() => toggleTopping(topping)}
+                />
+                {topping}
+                <span>+7.000đ</span>
+              </label>
+            ))}
+
+            <hr />
+
+            <div className="quantity">
+              <b>Số lượng</b>
+              <div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuantity((current) => Math.max(1, current - 1))
+                  }
+                >
+                  −
+                </button>
+
+                {quantity}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuantity((current) => current + 1)
+                  }
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="total">
+              <span>Tạm tính</span>
+              <b>{money(total)}</b>
+            </div>
+
+            <button
+              type="button"
+              className="btn wide"
+              onClick={() => {
+                add(product, size, selectedToppings, quantity);
+                setMessage("Đã thêm sản phẩm vào giỏ hàng.");
+              }}
+            >
+              Thêm vào giỏ hàng
+            </button>
+
+            {message && (
+              <p className="success">
+                {message}
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => router.push("/cart")}
+                >
+                  Xem giỏ hàng
+                </button>
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="detail-view-only">
+            <hr />
+            <p>
+              {role === "ADMIN" || role === "STAFF"
+                ? "Sản phẩm đang được hiển thị ở chế độ xem."
+                : "Đăng nhập bằng tài khoản khách hàng để đặt món."}
+            </p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }

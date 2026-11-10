@@ -1,0 +1,274 @@
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  color: #30251f;
+}
+
+/* HERO */
+.hero {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  align-items: center;
+  gap: 55px;
+  margin-bottom: 100px;
+}
+
+.hero small,
+.section-title small {
+  color: #98765c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.hero h1 {
+  margin: 22px 0;
+  font-family: Georgia, serif;
+  font-size: clamp(42px, 5vw, 64px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -1.5px;
+}
+
+.hero h1 i,
+.section-title h2 i {
+  color: #a87955;
+  font-weight: 400;
+}
+
+.hero p {
+  max-width: 390px;
+  color: #82766d;
+  font-size: 15px;
+  line-height: 1.8;
+  margin-bottom: 30px;
+}
+
+.hero img {
+  width: 100%;
+  height: 430px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 14px 24px;
+  background: #493529;
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.btn:hover {
+  background: #76543e;
+}
+
+/* MENU SECTION */
+#menu {
+  scroll-margin-top: 30px;
+}
+
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  margin-bottom: 30px;
+}
+
+.section-title h2 {
+  margin: 12px 0 0;
+  font-family: Georgia, serif;
+  font-size: 38px;
+  font-weight: 500;
+}
+
+.section-title > p {
+  color: #92857b;
+  font-size: 13px;
+  line-height: 1.8;
+  text-align: right;
+}
+
+/* CATEGORY FILTER */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.chips button {
+  padding: 9px 18px;
+  border: 1px solid #e7ded5;
+  border-radius: 30px;
+  background: transparent;
+  color: #75675e;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chips button:hover,
+.chips button.active {
+  background: #493529;
+  border-color: #493529;
+  color: white;
+}
+
+/* PRODUCT GRID */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.card {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #eee8e2;
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 28px rgba(57, 39, 26, 0.08);
+}
+
+.card > a:first-child {
+  display: block;
+  overflow: hidden;
+}
+
+.card > a:first-child img,
+.placeholder {
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  transition: transform 0.4s;
+}
+
+.card:hover > a:first-child img {
+  transform: scale(1.04);
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1eae2;
+  font-size: 45px;
+}
+
+.cardbody {
+  padding: 20px;
+}
+
+.cardbody small {
+  color: #a17c60;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.cardbody h3 {
+  margin: 10px 0;
+  color: #3c2c22;
+  font-family: Georgia, serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.cardbody p {
+  min-height: 42px;
+  margin: 0;
+  color: #91857c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.price {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eee8e2;
+  color: #493529;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.price a {
+  color: #98765c;
+  font-size: 20px;
+  text-decoration: none;
+}
+
+.price a:hover {
+  color: #493529;
+}
+
+/* LOADING / EMPTY */
+.state {
+  padding: 60px 20px;
+  color: #92857b;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* RESPONSIVE */
+@media (max-width: 850px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 30px;
+    margin-bottom: 70px;
+  }
+
+  .hero img {
+    height: 350px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 550px) {
+  .wrap {
+    padding: 25px 16px 55px;
+  }
+
+  .hero h1 {
+    font-size: 43px;
+  }
+
+  .hero img {
+    height: 260px;
+  }
+
+  .section-title {
+    display: block;
+  }
+
+  .section-title h2 {
+    font-size: 32px;
+  }
+
+  .section-title > p {
+    margin-top: 12px;
+    text-align: left;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .card > a:first-child img,
+  .placeholder {
+    height: 230px;
+  }
+}

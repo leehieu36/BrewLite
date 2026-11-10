@@ -3,5 +3,6 @@ import { PassportModule } from '@nestjs/passport';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { JwtStrategy } from '../auth/jwt.strategy';
-@Module({ imports: [PassportModule], controllers: [OrdersController], providers: [OrdersService, JwtStrategy] })
+import { RolesGuard } from '../common/roles.guard';
+@Module({ imports: [PassportModule], controllers: [OrdersController], providers: [OrdersService, JwtStrategy, RolesGuard] })
 export class OrdersModule { }

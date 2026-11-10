@@ -32,35 +32,56 @@ export default function Orders() {
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  useEffect(() => {
-    if (!token) {
-      setList([]);
-      setBusy(false);
-      setError("");
-      return;
-    }
-
-    let active = true;
-    setBusy(true);
+  
+useEffect(() => {
+  if (!token) {
+    setList([]);
+    setBusy(false);
     setError("");
+    return;
+  }
 
+  let active = true;
+
+  const loadOrders = (showError = false) => {
     history(token)
       .then((orders) => {
-        if (active) setList(orders);
+        if (active) {
+          setList(orders);
+          setError("");
+        }
       })
       .catch((cause: unknown) => {
-        if (active) {
-          setError(cause instanceof Error ? cause.message : "Không lấy được lịch sử đơn hàng.");
+        if (active && showError) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Không lấy được lịch sử đơn hàng."
+          );
         }
       })
       .finally(() => {
-        if (active) setBusy(false);
+        if (active && showError) {
+          setBusy(false);
+        }
       });
+  };
 
-    return () => {
-      active = false;
-    };
-  }, [token, refreshKey]);
+  setBusy(true);
+  setError("");
+
+  loadOrders(true);
+
+  const interval = window.setInterval(() => {
+    loadOrders();
+  }, 5000);
+
+  return () => {
+    active = false;
+    window.clearInterval(interval);
+  };
+}, [token, refreshKey]);
+
 
   return <div className="wrap sub">
     <div className="orders-heading">

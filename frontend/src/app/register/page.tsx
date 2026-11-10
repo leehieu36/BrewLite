@@ -6,7 +6,7 @@ import { register } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
 export default function Register() {
   const [name, N] = useState(""), [email, E] = useState(""), [password, P] = useState(""), [confirm, C] = useState(""), [error, X] = useState(""), [loading, L] = useState(false);
-  const { setToken, setName } = useApp(), router = useRouter();
+  const { setToken, setName, setRole } = useApp(), router = useRouter();
   async function submit(e: FormEvent) {
     e.preventDefault();
     X("");
@@ -31,6 +31,7 @@ export default function Register() {
     try {
       const r = await register(name, normalizedEmail, password), t = String(r.accessToken ?? r.access_token ?? r.token ?? "");
       setName(name);
+      setRole(String(r.user?.role ?? "CUSTOMER"));
       if (t) {
         setToken(t);
         router.push("/checkout");

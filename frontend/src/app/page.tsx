@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { products } from "@/lib/api";
 import type { Product } from "@/lib/types";
+import "./menu/menu.css";
 
 const money = (n: number) => n.toLocaleString("vi-VN") + "đ";
 

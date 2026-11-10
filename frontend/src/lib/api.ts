@@ -76,6 +76,45 @@ export async function products() {
   };
 }
 
+export type ManagedProduct = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  imageUrl: string | null;
+  stock: number;
+  isActive: boolean;
+};
+
+export type ProductInput = {
+  name: string;
+  description?: string;
+  price: number;
+  imageUrl?: string;
+  stock: number;
+};
+
+export async function adminProducts(token: string) {
+  return arr<ManagedProduct>(await req("/products", {}, token));
+}
+export async function createProduct(token: string, data: ProductInput) {
+  return req<ManagedProduct>("/products", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, token);
+}
+export async function updateProduct(token: string, id: string, data: ProductInput) {
+  return req<ManagedProduct>(`/products/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  }, token);
+}
+export async function deleteProduct(token: string, id: string) {
+  return req<ManagedProduct>(`/products/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  }, token);
+}
+
 export const login = (email: string, password: string) => req<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
 export const register = (name: string, email: string, password: string) => req<any>("/auth/register", { method: "POST", body: JSON.stringify({ name, email, password }) });
 export const order = (items: unknown[], token: string) => req<any>("/orders", { method: "POST", body: JSON.stringify({ items }) }, token);
@@ -93,4 +132,63 @@ export const pay = (orderId: string, method: Method, token: string) =>
   );
 export async function history(token: string) {
   return arr<Order>(await req("/orders/me", {}, token));
+}
+
+export type AdminSummary = {
+  customers: number;
+  staff: number | null;
+  orders: number;
+  pendingOrders: number;
+  activityLogs: number;
+};
+export type ActivityLog = {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  description: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  actorRole: string | null;
+  createdAt: string;
+  actor: { id: string; name: string | null; email: string } | null;
+};
+export type AdminUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: "CUSTOMER" | "STAFF" | "ADMIN";
+  loyaltyPoints: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export async function adminSummary(token: string) {
+  return req<AdminSummary>("/admin/summary", {}, token);
+}
+export async function adminActivityLogs(token: string, page = 1, limit = 30) {
+  return req<{ items: ActivityLog[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/admin/activity-logs?page=${page}&limit=${limit}`, {}, token);
+}
+export async function adminUsers(token: string, page = 1, limit = 30, q = "") {
+  return req<{ items: AdminUser[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/admin/users?page=${page}&limit=${limit}&q=${encodeURIComponent(q)}`, {}, token);
+}
+export async function updateUserRole(token: string, userId: string, role: AdminUser["role"]) {
+  return req<AdminUser>(`/admin/users/${encodeURIComponent(userId)}/role`, { method: "PATCH", body: JSON.stringify({ role }) }, token);
+}
+
+export type ManagedOrder = {
+  id: string;
+  status: string;
+  total: number;
+  createdAt: string;
+  user: { id: string; name: string | null; email: string };
+  items: { id: string; qty: number; size: string; toppings: string[]; lineTotal: number; product: { name: string } }[];
+};
+export async function adminOrders(token: string) {
+  return req<ManagedOrder[]>("/orders/management", {}, token);
+}
+export async function updateOrderStatus(token: string, orderId: string, status: string) {
+  return req<ManagedOrder>(`/orders/${encodeURIComponent(orderId)}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  }, token);
 }

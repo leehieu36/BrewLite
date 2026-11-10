@@ -8,8 +8,10 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { OrderStatus } from '@prisma/client';
 
 export class OrderLineDto {
   @IsString()
@@ -44,4 +46,9 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(40)
   promotionCode?: string;
+}
+
+export class UpdateOrderStatusDto {
+  @IsEnum(OrderStatus)
+  status: OrderStatus;
 }

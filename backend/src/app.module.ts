@@ -6,9 +6,11 @@ import { AuthModule } from './auth/auth.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { HealthController } from './health.controller';
+import { AuditModule } from './audit/audit.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, ProductsModule, AuthModule, OrdersModule, PaymentsModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, AuditModule, ProductsModule, AuthModule, OrdersModule, PaymentsModule, AdminModule],
   controllers: [HealthController],
 })
 export class AppModule { }

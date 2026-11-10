@@ -2,11 +2,13 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PaymentStatus, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CreatePaymentDto } from './payments.dto';
+import { AuditService } from '../audit/audit.service';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private prisma: PrismaService) { }
-  async create(userId: string, key: string, dto: CreatePaymentDto) {
+  constructor(private prisma: PrismaService, private audit: AuditService) { }
+  async create(userId: string, key: string, dto: CreatePaymentDto, role: UserRole = UserRole.CUSTOMER, meta: { ipAddress?: string; userAgent?: string } = {}) {
     if (!key || key.trim().length < 8 || key.length > 200) throw new BadRequestException('Header Idempotency-Key là bắt buộc (8–200 ký tự)');
     const existing = await this.prisma.payment.findUnique({ where: { idempotencyKey: key } });
     if (existing) {
@@ -21,7 +23,7 @@ export class PaymentsService {
     if (order.payments.some(p => p.status === PaymentStatus.SUCCEEDED)) throw new ConflictException('Đơn hàng đã thanh toán');
     // All online methods are simulated until real bank, VNPay, or MoMo credentials are configured.
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const payment = await this.prisma.$transaction(async (tx) => {
         // Compare-and-set makes only one concurrent payment attempt win for a pending order.
         const claimed = await tx.order.updateMany({ where: { id: order.id, userId, status: OrderStatus.PENDING }, data: { status: OrderStatus.PAID } });
         if (claimed.count !== 1) throw new BadRequestException('Đơn hàng không còn ở trạng thái chờ thanh toán');
@@ -31,6 +33,8 @@ export class PaymentsService {
         if (points > 0) await tx.user.update({ where: { id: userId }, data: { loyaltyPoints: { increment: points } } });
         return payment;
       });
+      await this.audit.record({ actorUserId: userId, action: 'PAYMENT_SUCCEEDED', entity: 'PAYMENT', entityId: payment.id, description: 'Thanh toán đơn hàng được ghi nhận (môi trường demo)', actorRole: role, ...meta });
+      return payment;
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       // A parallel retry can win the unique idempotency-key race; return the stored result.

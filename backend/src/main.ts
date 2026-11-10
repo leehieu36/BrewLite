@@ -7,6 +7,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
   app.setGlobalPrefix('api');
+  // Basic browser security headers (API-only service; no inline HTML is served).
+  app.use((_req, res, next) => {
+    res.removeHeader('X-Powered-By');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
   app.enableCors({ origin: config.get<string>('FRONTEND_ORIGIN', 'http://localhost:3000'), credentials: true });
   app.useGlobalPipes(
     new ValidationPipe({
