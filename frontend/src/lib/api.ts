@@ -247,12 +247,42 @@ export const register = (
     body: JSON.stringify({ name, email, password }),
   });
 
-export const order = (items: unknown[], token: string) =>
+export const validatePromotion = (
+  items: unknown[],
+  promotionCode: string,
+  token: string,
+) =>
+  req<any>(
+    "/orders/validate-promotion",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        items,
+        promotionCode: promotionCode.trim().toUpperCase(),
+      }),
+    },
+    token,
+  );
+
+export const order = (
+  items: unknown[],
+  token: string,
+  promotionCode?: string,
+  idempotencyKey: string = crypto.randomUUID(),
+) =>
   req<any>(
     "/orders",
     {
       method: "POST",
-      body: JSON.stringify({ items }),
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify({
+        items,
+        ...(promotionCode?.trim()
+          ? { promotionCode: promotionCode.trim().toUpperCase() }
+          : {}),
+      }),
     },
     token,
   );
@@ -527,6 +557,31 @@ export async function reviewOrderCancellation(
     {
       method: "PATCH",
       body: JSON.stringify({ approved }),
+    },
+    token,
+  );
+}
+
+export type CreatePromotionInput = {
+  code: string;
+  discountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountValue: number;
+  minOrderValue?: number;
+  maxDiscount?: number;
+  startAt: string;
+  endAt: string;
+  usageLimit?: number;
+};
+
+export async function createAdminPromotion(
+  token: string,
+  data: CreatePromotionInput,
+) {
+  return req<any>(
+    "/admin/promotions",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
     },
     token,
   );

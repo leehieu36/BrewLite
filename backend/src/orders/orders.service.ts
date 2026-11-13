@@ -11,14 +11,11 @@ import {
   PaymentStatus,
   UserRole,
   CancellationRequestStatus,
+  DiscountType,
 } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CreateOrderDto } from './orders.dto';
 import { AuditService } from '../audit/audit.service';
-import {
-  POINT_REDEMPTION_VALUE,
-  SPENDING_PER_POINT,
-} from '../common/loyalty.constants';
 
 const transitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['PAID', 'PAYMENT_FAILED'],
@@ -30,6 +27,63 @@ const transitions: Record<OrderStatus, OrderStatus[]> = {
   CANCELLED: [],
 };
 
+type NormalizedOrderLine = {
+  productId: string;
+  qty: number;
+  size: string;
+  toppings: string[];
+};
+
+function normalizeOrderItems(dto: CreateOrderDto): NormalizedOrderLine[] {
+  const merged = new Map<string, NormalizedOrderLine>();
+
+  for (const item of dto.items) {
+    const size = item.size || 'M';
+    const toppings = Array.from(new Set(item.toppings ?? [])).sort();
+    const key = JSON.stringify([item.productId, size, toppings]);
+
+    const old = merged.get(key);
+
+    merged.set(key, {
+      productId: item.productId,
+      qty: (old?.qty ?? 0) + item.qty,
+      size,
+      toppings,
+    });
+  }
+
+  return Array.from(merged.values()).sort((a, b) =>
+    JSON.stringify([a.productId, a.size, a.toppings]).localeCompare(
+      JSON.stringify([b.productId, b.size, b.toppings]),
+    ),
+  );
+}
+
+function matchesOrderPayload(
+  order: Prisma.OrderGetPayload<{ include: { items: true } }>,
+  promotionCode: string | null,
+  requestedItems: NormalizedOrderLine[],
+): boolean {
+  if (order.promotionCode !== promotionCode) {
+    return false;
+  }
+
+  const existingItems = [...order.items]
+    .map((item) => ({
+      productId: item.productId,
+      qty: item.qty,
+      size: item.size,
+      toppings: [...item.toppings].sort(),
+    }))
+    .sort((a, b) =>
+      JSON.stringify([a.productId, a.size, a.toppings]).localeCompare(
+        JSON.stringify([b.productId, b.size, b.toppings]),
+      ),
+    );
+
+  return JSON.stringify(existingItems) === JSON.stringify(requestedItems);
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -37,32 +91,177 @@ export class OrdersService {
     private audit: AuditService,
   ) {}
 
+  async validatePromotion(dto: CreateOrderDto) {
+    const requestedItems = normalizeOrderItems(dto);
+
+    let subtotal = 0;
+
+    for (const item of requestedItems) {
+      const product = await this.prisma.product.findFirst({
+        where: {
+          id: item.productId,
+          isActive: true,
+          stock: { gte: item.qty },
+        },
+      });
+
+      if (!product) {
+        throw new BadRequestException(
+          `Sản phẩm ${item.productId} không tồn tại, đã ngừng bán hoặc không đủ tồn kho`,
+        );
+      }
+
+      const sizePrice =
+        item.size === 'M' ? 5000 : item.size === 'L' ? 10000 : 0;
+
+      const unitPrice =
+        product.price + sizePrice + item.toppings.length * 7000;
+
+      subtotal += unitPrice * item.qty;
+
+      if (!Number.isSafeInteger(subtotal)) {
+        throw new BadRequestException('Tổng tiền đơn hàng không hợp lệ');
+      }
+    }
+
+    const promotionCode = dto.promotionCode?.trim().toUpperCase();
+
+    if (!promotionCode) {
+      throw new BadRequestException('Vui lòng nhập mã khuyến mãi');
+    }
+
+    const promotion = await this.prisma.promotion.findUnique({
+      where: { code: promotionCode },
+    });
+
+    if (!promotion || !promotion.isActive) {
+      throw new BadRequestException(
+        'Mã khuyến mãi không tồn tại hoặc đã bị vô hiệu hóa',
+      );
+    }
+
+    const now = new Date();
+
+    if (now < promotion.startAt || now > promotion.endAt) {
+      throw new BadRequestException(
+        'Mã khuyến mãi đã hết hạn hoặc chưa đến thời gian sử dụng',
+      );
+    }
+
+    if (
+      promotion.usageLimit !== null &&
+      promotion.usedCount >= promotion.usageLimit
+    ) {
+      throw new BadRequestException(
+        'Mã khuyến mãi đã hết lượt sử dụng',
+      );
+    }
+
+    if (subtotal < promotion.minOrderValue) {
+      throw new BadRequestException(
+        `Đơn hàng phải đạt tối thiểu ${promotion.minOrderValue.toLocaleString('vi-VN')}đ để sử dụng mã này`,
+      );
+    }
+
+    if (
+      !Number.isSafeInteger(promotion.discountValue) ||
+      promotion.discountValue <= 0
+    ) {
+      throw new BadRequestException('Giá trị khuyến mãi không hợp lệ');
+    }
+
+    let discountAmount = 0;
+
+    if (promotion.discountType === DiscountType.PERCENTAGE) {
+      if (promotion.discountValue > 100) {
+        throw new BadRequestException(
+          'Phần trăm giảm giá không được vượt quá 100%',
+        );
+      }
+
+      discountAmount = Math.floor(
+        (subtotal * promotion.discountValue) / 100,
+      );
+    } else if (promotion.discountType === DiscountType.FIXED_AMOUNT) {
+      discountAmount = promotion.discountValue;
+    } else {
+      throw new BadRequestException('Loại khuyến mãi không hợp lệ');
+    }
+
+    if (
+      promotion.maxDiscount !== null &&
+      promotion.maxDiscount <= 0
+    ) {
+      throw new BadRequestException(
+        'Mức giảm tối đa của mã khuyến mãi không hợp lệ',
+      );
+    }
+
+    if (promotion.maxDiscount !== null) {
+      discountAmount = Math.min(
+        discountAmount,
+        promotion.maxDiscount,
+      );
+    }
+
+    discountAmount = Math.min(discountAmount, subtotal);
+
+    return {
+      valid: true,
+      promotionCode: promotion.code,
+      discountType: promotion.discountType,
+      discountValue: promotion.discountValue,
+      subtotal,
+      discountAmount,
+      total: subtotal - discountAmount,
+    };
+  }
+
   async create(
     userId: string,
+    key: string,
     dto: CreateOrderDto,
     role: UserRole = UserRole.CUSTOMER,
     meta: { ipAddress?: string; userAgent?: string } = {},
   ) {
-    const merged = new Map<
-      string,
-      { productId: string; qty: number; size: string; toppings: string[] }
-    >();
+    const idempotencyKey = key?.trim();
 
-    for (const item of dto.items) {
-      const size = item.size || 'M';
-      const toppings: string[] = Array.from(
-        new Set<string>(item.toppings ?? []),
-      ).sort();
+    if (
+      !idempotencyKey ||
+      idempotencyKey.length < 8 ||
+      idempotencyKey.length > 200
+    ) {
+      throw new BadRequestException(
+        'Idempotency-Key phải có độ dài từ 8 đến 200 ký tự',
+      );
+    }
 
-      const key = `${item.productId}:${size}:${toppings.join(',')}`;
-      const old = merged.get(key);
+    const requestedItems = normalizeOrderItems(dto);
+    const promotionCode = dto.promotionCode?.trim().toUpperCase() || null;
 
-      merged.set(key, {
-        productId: item.productId,
-        qty: (old?.qty || 0) + item.qty,
-        size,
-        toppings,
-      });
+    const existingOrder = await this.prisma.order.findUnique({
+      where: { idempotencyKey },
+      include: { items: true },
+    });
+
+    if (existingOrder) {
+      if (existingOrder.userId !== userId) {
+        throw new ConflictException('Idempotency-Key đã được sử dụng');
+      }
+
+      if (
+        !matchesOrderPayload(
+          existingOrder,
+          promotionCode,
+          requestedItems,
+        )
+      ) {
+        throw new ConflictException(
+          'Idempotency-Key đã được sử dụng cho nội dung đơn hàng khác',
+        );
+      }
+
+      return existingOrder;
     }
 
     try {
@@ -79,7 +278,7 @@ export class OrdersService {
 
           let total = 0;
 
-          for (const item of merged.values()) {
+          for (const item of requestedItems) {
             const product = await tx.product.findFirst({
               where: {
                 id: item.productId,
@@ -98,15 +297,17 @@ export class OrdersService {
                 id: product.id,
                 isActive: true,
                 stock: { gte: item.qty },
+                version: product.version,
               },
               data: {
                 stock: { decrement: item.qty },
+                version: { increment: 1 },
               },
             });
 
             if (changed.count !== 1) {
-              throw new BadRequestException(
-                `Sản phẩm "${product.name}" không đủ tồn kho`,
+              throw new ConflictException(
+                `Sản phẩm "${product.name}" vừa thay đổi tồn kho hoặc không đủ số lượng. Vui lòng thử lại.`,
               );
             }
 
@@ -129,11 +330,112 @@ export class OrdersService {
             });
           }
 
+          let discountAmount = 0;
+
+          if (promotionCode) {
+            const promotion = await tx.promotion.findUnique({
+              where: { code: promotionCode },
+            });
+
+            if (!promotion || !promotion.isActive) {
+              throw new BadRequestException(
+                'Mã khuyến mãi không tồn tại hoặc đã bị vô hiệu hóa',
+              );
+            }
+
+            const now = new Date();
+
+            if (now < promotion.startAt || now > promotion.endAt) {
+              throw new BadRequestException(
+                'Mã khuyến mãi đã hết hạn hoặc chưa đến thời gian sử dụng',
+              );
+            }
+
+            if (total < promotion.minOrderValue) {
+              throw new BadRequestException(
+                `Đơn hàng phải đạt tối thiểu ${promotion.minOrderValue.toLocaleString('vi-VN')}đ để sử dụng mã này`,
+              );
+            }
+
+            if (
+              !Number.isSafeInteger(promotion.discountValue) ||
+              promotion.discountValue <= 0
+            ) {
+              throw new BadRequestException(
+                'Giá trị khuyến mãi không hợp lệ',
+              );
+            }
+
+            if (
+              promotion.discountType === DiscountType.PERCENTAGE &&
+              promotion.discountValue > 100
+            ) {
+              throw new BadRequestException(
+                'Phần trăm giảm giá không được vượt quá 100%',
+              );
+            }
+
+            if (
+              promotion.maxDiscount !== null &&
+              promotion.maxDiscount <= 0
+            ) {
+              throw new BadRequestException(
+                'Mức giảm tối đa của mã khuyến mãi không hợp lệ',
+              );
+            }
+
+            if (promotion.discountType === DiscountType.PERCENTAGE) {
+              discountAmount = Math.floor(
+                (total * promotion.discountValue) / 100,
+              );
+            } else if (
+              promotion.discountType === DiscountType.FIXED_AMOUNT
+            ) {
+              discountAmount = promotion.discountValue;
+            } else {
+              throw new BadRequestException(
+                'Loại khuyến mãi không hợp lệ',
+              );
+            }
+
+            if (promotion.maxDiscount !== null) {
+              discountAmount = Math.min(
+                discountAmount,
+                promotion.maxDiscount,
+              );
+            }
+
+            discountAmount = Math.min(discountAmount, total);
+
+            const claimedPromotion = await tx.promotion.updateMany({
+              where: {
+                id: promotion.id,
+                isActive: true,
+                startAt: { lte: now },
+                endAt: { gte: now },
+                ...(promotion.usageLimit !== null
+                  ? { usedCount: { lt: promotion.usageLimit } }
+                  : {}),
+              },
+              data: {
+                usedCount: { increment: 1 },
+              },
+            });
+
+            if (claimedPromotion.count !== 1) {
+              throw new ConflictException(
+                'Mã khuyến mãi vừa hết lượt sử dụng hoặc không còn hiệu lực',
+              );
+            }
+          }
+
           return tx.order.create({
             data: {
               userId,
-              total,
-              promotionCode: dto.promotionCode?.trim() || null,
+              idempotencyKey,
+              total: total - discountAmount,
+              discountAmount,
+              promotionCode,
               items: {
                 create: orderLines,
               },
@@ -162,17 +464,47 @@ export class OrdersService {
 
       return created;
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
 
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2034'
+        (error.code === 'P2002' || error.code === 'P2034')
       ) {
-        throw new BadRequestException(
-          'Có cập nhật tồn kho đồng thời; vui lòng tạo lại đơn hàng',
-        );
+        const racedOrder = await this.prisma.order.findUnique({
+          where: { idempotencyKey },
+          include: { items: true },
+        });
+
+        if (racedOrder) {
+          if (racedOrder.userId !== userId) {
+            throw new ConflictException('Idempotency-Key đã được sử dụng');
+          }
+
+          if (
+            !matchesOrderPayload(
+              racedOrder,
+              promotionCode,
+              requestedItems,
+            )
+          ) {
+            throw new ConflictException(
+              'Idempotency-Key đã được sử dụng cho nội dung đơn hàng khác',
+            );
+          }
+
+          return racedOrder;
+        }
+
+        if (error.code === 'P2034') {
+          throw new BadRequestException(
+            'Có cập nhật tồn kho đồng thời; vui lòng tạo lại đơn hàng',
+          );
+        }
       }
 
       throw error;
@@ -290,7 +622,6 @@ export class OrdersService {
     return order;
   }
 
-  // Khách hàng hủy trực tiếp đơn chưa thanh toán.
   async cancelPendingOrder(
     userId: string,
     orderId: string,
@@ -343,7 +674,6 @@ export class OrdersService {
     return result;
   }
 
-  // Khách gửi yêu cầu hủy đơn đã thanh toán hoặc đang pha chế.
   async requestCancellation(
     userId: string,
     orderId: string,
@@ -417,7 +747,6 @@ export class OrdersService {
     return this.getOwned(userId, orderId);
   }
 
-  // Nhân viên duyệt hoặc từ chối yêu cầu hủy.
   async reviewCancellation(
     orderId: string,
     approved: boolean,
@@ -478,11 +807,9 @@ export class OrdersService {
         });
       }
 
-      const cancelled = await this.cancelInTransaction(tx, order, {
+      return this.cancelInTransaction(tx, order, {
         reviewedBy: actorId,
       });
-
-      return cancelled;
     });
 
     await this.audit.record({
@@ -502,8 +829,6 @@ export class OrdersService {
     return result;
   }
 
-  
-  // Nhân viên ghi nhận lỗi thanh toán và hủy đơn hàng.
   async staffCancelOrder(
     orderId: string,
     actorId: string,
@@ -520,14 +845,12 @@ export class OrdersService {
         throw new NotFoundException('Không tìm thấy đơn hàng');
       }
 
-      // Chỉ ghi nhận lỗi thanh toán đối với đơn đang chờ thanh toán.
       if (order.status !== OrderStatus.PENDING) {
         throw new BadRequestException(
           'Chỉ có thể ghi nhận lỗi thanh toán cho đơn hàng đang chờ thanh toán',
         );
       }
 
-      // Phải có giao dịch thanh toán bên ngoài đang chờ xử lý.
       const hasPendingPayment = order.payments.some(
         (payment) =>
           payment.status === PaymentStatus.PENDING &&
@@ -540,7 +863,6 @@ export class OrdersService {
         );
       }
 
-      // Không cho hủy nếu đã tồn tại giao dịch thanh toán thành công.
       const hasSucceededPayment = order.payments.some(
         (payment) => payment.status === PaymentStatus.SUCCEEDED,
       );
@@ -567,7 +889,6 @@ export class OrdersService {
     return result;
   }
 
-  // Hàm xử lý hủy dùng chung, chạy bên trong transaction.
   private async cancelInTransaction(
     tx: Prisma.TransactionClient,
     order: Prisma.OrderGetPayload<{
@@ -627,6 +948,7 @@ export class OrdersService {
           where: { id: item.productId },
           data: {
             stock: { increment: item.qty },
+            version: { increment: 1 },
           },
         });
       }
@@ -733,42 +1055,18 @@ export class OrdersService {
         );
       }
 
-      // Chỉ cộng điểm khi đơn chuyển sang COMPLETED
-      const pointsEarned =
-        status === OrderStatus.COMPLETED
-          ? Math.floor(Number(order.total) / SPENDING_PER_POINT)
-          : 0;
-
-      // Cập nhật có điều kiện để tránh cộng điểm nhiều lần
       const result = await tx.order.updateMany({
         where: {
           id: orderId,
           status: order.status,
         },
-        data: {
-          status,
-          ...(status === OrderStatus.COMPLETED
-            ? { loyaltyPointsEarned: pointsEarned }
-            : {}),
-        },
+        data: { status },
       });
 
       if (result.count !== 1) {
         throw new BadRequestException(
           'Đơn hàng đã được cập nhật bởi một thao tác khác',
         );
-      }
-
-      // Cộng điểm vào tài khoản người dùng
-      if (status === OrderStatus.COMPLETED && pointsEarned > 0) {
-        await tx.user.update({
-          where: { id: order.userId },
-          data: {
-            loyaltyPoints: {
-              increment: pointsEarned,
-            },
-          },
-        });
       }
 
       const resultOrder = await tx.order.findUnique({

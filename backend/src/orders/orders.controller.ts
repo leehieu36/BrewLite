@@ -4,6 +4,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
@@ -44,13 +45,23 @@ export class OrdersController {
   }
 
   @Post()
-  create(@Req() req: AuthedRequest, @Body() dto: CreateOrderDto) {
+  create(
+    @Req() req: AuthedRequest,
+    @Headers('idempotency-key') key: string,
+    @Body() dto: CreateOrderDto,
+  ) {
     return this.orders.create(
       req.user.id,
+      key,
       dto,
       req.user.role,
       this.getMeta(req),
     );
+  }
+
+  @Post('validate-promotion')
+  validatePromotion(@Body() dto: CreateOrderDto) {
+    return this.orders.validatePromotion(dto);
   }
 
   @Get('management')

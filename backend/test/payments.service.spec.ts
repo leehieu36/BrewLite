@@ -1,3 +1,4 @@
+
 import {
   BadRequestException,
   ConflictException,
@@ -5,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, PaymentStatus, UserRole } from '@prisma/client';
 import { PaymentsService } from '../src/payments/payments.service';
-import { POINT_REDEMPTION_VALUE } from '../src/common/loyalty.constants';
+import {
+  POINT_REDEMPTION_VALUE,
+  SPENDING_PER_POINT,
+} from '../src/common/loyalty.constants';
 
 describe('PaymentsService - loyalty points', () => {
   let service: PaymentsService;
@@ -21,6 +25,10 @@ describe('PaymentsService - loyalty points', () => {
     payments: [],
   };
 
+  const expectedPointsEarned = Math.floor(
+    Number(order.total) / SPENDING_PER_POINT,
+  );
+
   beforeEach(() => {
     tx = {
       order: {
@@ -31,6 +39,7 @@ describe('PaymentsService - loyalty points', () => {
       user: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findUnique: jest.fn().mockResolvedValue({ loyaltyPoints: 200 }),
+        update: jest.fn().mockResolvedValue({}),
       },
       payment: {
         create: jest.fn().mockImplementation(({ data }) => ({
@@ -44,11 +53,13 @@ describe('PaymentsService - loyalty points', () => {
         }),
       },
     };
+
     prisma = {
       payment: { findUnique: jest.fn().mockResolvedValue(null) },
       order: { findFirst: jest.fn().mockResolvedValue({ id: 'order-1' }) },
       $transaction: jest.fn((callback) => callback(tx)),
     };
+
     audit = { record: jest.fn().mockResolvedValue(null) };
     service = new PaymentsService(prisma, audit);
   });
@@ -62,15 +73,35 @@ describe('PaymentsService - loyalty points', () => {
     );
 
     const required = Math.ceil(order.total / POINT_REDEMPTION_VALUE);
+
     expect(required).toBe(100);
+
     expect(tx.user.updateMany).toHaveBeenCalledWith({
       where: { id: 'user-1', loyaltyPoints: { gte: required } },
       data: { loyaltyPoints: { decrement: required } },
     });
+
     expect(tx.order.updateMany).toHaveBeenCalledWith({
-      where: { id: 'order-1', userId: 'user-1', status: OrderStatus.PENDING },
-      data: { status: OrderStatus.PAID },
+      where: {
+        id: 'order-1',
+        userId: 'user-1',
+        status: OrderStatus.PENDING,
+      },
+      data: {
+        status: OrderStatus.PAID,
+        loyaltyPointsEarned: expectedPointsEarned,
+      },
     });
+
+    if (expectedPointsEarned > 0) {
+      expect(tx.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          loyaltyPoints: { increment: expectedPointsEarned },
+        },
+      });
+    }
+
     expect(result.status).toBe(PaymentStatus.SUCCEEDED);
     expect(result.providerRef).toBe('POINTS-100');
   });
@@ -108,7 +139,6 @@ describe('PaymentsService - loyalty points', () => {
     expect(tx.user.updateMany).not.toHaveBeenCalled();
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
-
 
   it('rejects an idempotency key that is too short', async () => {
     await expect(
@@ -170,17 +200,13 @@ describe('PaymentsService - loyalty points', () => {
   });
 
   it('rejects confirmation when the order has no pending payment', async () => {
-    tx.order.findFirst.mockResolvedValue({
+    tx.order.findUnique.mockResolvedValue({
       ...order,
       payments: [],
     });
 
     await expect(
-      service.confirm(
-        'order-1',
-        'staff-1',
-        UserRole.STAFF,
-      ),
+      service.confirm('order-1', 'staff-1', UserRole.STAFF),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -188,17 +214,11 @@ describe('PaymentsService - loyalty points', () => {
     tx.order.findUnique.mockResolvedValue({
       ...order,
       status: OrderStatus.PAID,
-      payments: [
-        { status: PaymentStatus.PENDING },
-      ],
+      payments: [{ status: PaymentStatus.PENDING }],
     });
 
     await expect(
-      service.confirm(
-        'order-1',
-        'staff-1',
-        UserRole.STAFF,
-      ),
+      service.confirm('order-1', 'staff-1', UserRole.STAFF),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -232,8 +252,18 @@ describe('PaymentsService - loyalty points', () => {
       },
       data: {
         status: OrderStatus.PAID,
+        loyaltyPointsEarned: expectedPointsEarned,
       },
     });
+
+    if (expectedPointsEarned > 0) {
+      expect(tx.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          loyaltyPoints: { increment: expectedPointsEarned },
+        },
+      });
+    }
 
     expect(tx.payment.updateMany).toHaveBeenCalledWith({
       where: {
@@ -264,11 +294,7 @@ describe('PaymentsService - loyalty points', () => {
     tx.order.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      service.confirm(
-        'order-1',
-        'staff-2',
-        UserRole.STAFF,
-      ),
+      service.confirm('order-1', 'staff-2', UserRole.STAFF),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(tx.payment.updateMany).not.toHaveBeenCalled();

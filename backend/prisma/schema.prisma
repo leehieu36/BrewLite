@@ -38,6 +38,11 @@ enum CancellationRequestStatus {
   REJECTED
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -69,12 +74,32 @@ model Product {
   @@index([isActive, name])
 }
 
+model Promotion {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  discountType  DiscountType
+  discountValue Int
+  minOrderValue Int          @default(0)
+  maxDiscount   Int?
+  startAt       DateTime
+  endAt         DateTime
+  usageLimit    Int?
+  usedCount     Int          @default(0)
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([isActive, startAt, endAt])
+}
+
 model Order {
   id                        String                    @id @default(cuid())
+  idempotencyKey            String?                   @unique
   userId                    String
   status                    OrderStatus               @default(PENDING)
   total                     Int
   promotionCode             String?
+  discountAmount            Int                       @default(0)
   loyaltyPointsEarned       Int                       @default(0)
   createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime                  @updatedAt

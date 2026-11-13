@@ -12,6 +12,7 @@ const navItems = [
   { href: "/admin/menu", label: "Quản lý thực đơn" },
   { href: "/admin/customers", label: "Quản lý khách hàng", adminOnly: true },
   { href: "/admin/activity", label: "Nhật ký hoạt động" },
+  { href: "/admin/promotions", label: "Quản lý khuyến mãi", adminOnly: true },
 ];
 
 export default function AdminLayout({

@@ -9,7 +9,10 @@ import { PaymentStatus, OrderStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CreatePaymentDto } from './payments.dto';
 import { AuditService } from '../audit/audit.service';
-import { POINT_REDEMPTION_VALUE } from '../common/loyalty.constants';
+import {
+  POINT_REDEMPTION_VALUE,
+  SPENDING_PER_POINT,
+} from '../common/loyalty.constants';
 
 @Injectable()
 export class PaymentsService {
@@ -125,6 +128,10 @@ export class PaymentsService {
             );
           }
 
+          const pointsEarned = Math.floor(
+            Number(order.total) / SPENDING_PER_POINT,
+          );
+
           const claimed = await tx.order.updateMany({
             where: {
               id: order.id,
@@ -133,13 +140,23 @@ export class PaymentsService {
             },
             data: {
               status: OrderStatus.PAID,
+              loyaltyPointsEarned: pointsEarned,
             },
           });
 
           if (claimed.count !== 1) {
-            throw new BadRequestException(
+            throw new ConflictException(
               'Đơn hàng không còn ở trạng thái chờ thanh toán',
             );
+          }
+
+          if (pointsEarned > 0) {
+            await tx.user.update({
+              where: { id: userId },
+              data: {
+                loyaltyPoints: { increment: pointsEarned },
+              },
+            });
           }
         }
 
@@ -270,6 +287,10 @@ export class PaymentsService {
         );
       }
 
+      const pointsEarned = Math.floor(
+        Number(order.total) / SPENDING_PER_POINT,
+      );
+
       const claimed = await tx.order.updateMany({
         where: {
           id: orderId,
@@ -277,6 +298,7 @@ export class PaymentsService {
         },
         data: {
           status: OrderStatus.PAID,
+          loyaltyPointsEarned: pointsEarned,
         },
       });
 
@@ -284,6 +306,15 @@ export class PaymentsService {
         throw new ConflictException(
           'Đơn hàng đã được xử lý bởi nhân viên khác',
         );
+      }
+
+      if (pointsEarned > 0) {
+        await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPoints: { increment: pointsEarned },
+          },
+        });
       }
 
       const updatedPayment = await tx.payment.updateMany({
