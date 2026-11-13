@@ -132,6 +132,21 @@ export class OrdersController {
     return this.orders.getOwned(req.user.id, id);
   }
 
+  @Post(':id/staff-cancel')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.STAFF, UserRole.ADMIN)
+  staffCancel(
+    @Req() req: AuthedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.orders.staffCancelOrder(
+      id,
+      req.user.id,
+      req.user.role,
+      this.getMeta(req),
+    );
+  }
+
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles(UserRole.STAFF, UserRole.ADMIN)

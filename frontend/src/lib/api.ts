@@ -428,6 +428,19 @@ export async function updateOrderStatus(
   );
 }
 
+export async function staffCancelOrder(
+  token: string,
+  orderId: string,
+) {
+  return req<ManagedOrder>(
+    `/orders/${encodeURIComponent(orderId)}/staff-cancel`,
+    {
+      method: "POST",
+    },
+    token,
+  );
+}
+
 export async function confirmPayment(
   token: string,
   orderId: string,

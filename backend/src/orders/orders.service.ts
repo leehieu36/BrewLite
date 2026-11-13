@@ -502,7 +502,8 @@ export class OrdersService {
     return result;
   }
 
-  // Nhân viên chủ động hủy đơn hàng.
+  
+  // Nhân viên ghi nhận lỗi thanh toán và hủy đơn hàng.
   async staffCancelOrder(
     orderId: string,
     actorId: string,
@@ -519,23 +520,38 @@ export class OrdersService {
         throw new NotFoundException('Không tìm thấy đơn hàng');
       }
 
-      if (
-        !(
-          [
-            OrderStatus.PENDING,
-            OrderStatus.PAID,
-            OrderStatus.PREPARING,
-          ] as OrderStatus[]
-        ).includes(order.status)
-      ) {
+      // Chỉ ghi nhận lỗi thanh toán đối với đơn đang chờ thanh toán.
+      if (order.status !== OrderStatus.PENDING) {
         throw new BadRequestException(
-          `Không thể hủy đơn hàng ở trạng thái ${order.status}`,
+          'Chỉ có thể ghi nhận lỗi thanh toán cho đơn hàng đang chờ thanh toán',
         );
       }
 
-      return this.cancelInTransaction(tx, order, {
-        reviewedBy: actorId,
-      });
+      // Phải có giao dịch thanh toán bên ngoài đang chờ xử lý.
+      const hasPendingPayment = order.payments.some(
+        (payment) =>
+          payment.status === PaymentStatus.PENDING &&
+          ['BANK_TRANSFER', 'VNPAY', 'MOMO'].includes(payment.method),
+      );
+
+      if (!hasPendingPayment) {
+        throw new BadRequestException(
+          'Đơn hàng không có giao dịch thanh toán đang chờ xử lý',
+        );
+      }
+
+      // Không cho hủy nếu đã tồn tại giao dịch thanh toán thành công.
+      const hasSucceededPayment = order.payments.some(
+        (payment) => payment.status === PaymentStatus.SUCCEEDED,
+      );
+
+      if (hasSucceededPayment) {
+        throw new BadRequestException(
+          'Đơn hàng đã có thanh toán thành công, không thể ghi nhận lỗi thanh toán',
+        );
+      }
+
+      return this.cancelInTransaction(tx, order);
     });
 
     await this.audit.record({
@@ -544,7 +560,7 @@ export class OrdersService {
       action: 'ORDER_CANCELLED_BY_STAFF',
       entity: 'ORDER',
       entityId: orderId,
-      description: 'Nhân viên chủ động hủy đơn hàng',
+      description: 'Nhân viên ghi nhận lỗi thanh toán và hủy đơn hàng',
       ...meta,
     });
 

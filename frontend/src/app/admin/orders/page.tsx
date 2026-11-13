@@ -8,11 +8,11 @@ import {
   updateOrderStatus,
   confirmPayment,
   reviewOrderCancellation,
+  staffCancelOrder,
   type ManagedOrder,
 } from "@/lib/api";
 
 const transitions: Record<string, string[]> = {
-  PENDING: ["CANCELLED"],
   PAID: ["PREPARING"],
   PREPARING: ["READY"],
   READY: ["COMPLETED"],
@@ -44,6 +44,8 @@ const methodLabels: Record<string, string> = {
   MOMO: "Ví MoMo",
   VNPAY: "Ví VNPay",
 };
+
+const externalPaymentMethods = ["BANK_TRANSFER", "VNPAY", "MOMO"];
 
 const money = (value: number) =>
   Number(value || 0).toLocaleString("vi-VN") + "đ";
@@ -84,30 +86,40 @@ export default function OrdersPage() {
     return () => clearInterval(timer);
   }, [load]);
 
-  const changeStatus = async (orderId: string, status: string) => {
+  const handlePaymentError = async (order: ManagedOrder) => {
     if (!token || busyId) return;
 
+    const pendingPayment = order.payments?.find(
+      (payment) =>
+        payment.status === "PENDING" &&
+        externalPaymentMethods.includes(payment.method)
+    );
+
+    if (order.status !== "PENDING" || !pendingPayment) {
+      setError("Không tìm thấy giao dịch thanh toán đang chờ xử lý.");
+      return;
+    }
+
     const confirmed = await confirm(
-      `Xác nhận chuyển trạng thái đơn hàng thành "${
-        statusLabels[status] || status
-      }"?`,
-      "Cập nhật trạng thái đơn hàng"
+      `Xác nhận ghi nhận lỗi thanh toán và hủy đơn hàng #${order.id.slice(-8)}?`,
+      "Ghi nhận lỗi thanh toán"
     );
 
     if (!confirmed) return;
 
     try {
-      setBusyId(orderId);
+      setBusyId(order.id);
       setError("");
       setNotice("");
 
-      await updateOrderStatus(token, orderId, status);
+      await staffCancelOrder(token, order.id);
 
-      setNotice("Cập nhật trạng thái đơn hàng thành công.");
       await load();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Không thể cập nhật đơn."
+        err instanceof Error
+          ? err.message
+          : "Không thể ghi nhận lỗi thanh toán."
       );
     } finally {
       setBusyId("");
@@ -120,7 +132,7 @@ export default function OrdersPage() {
     const pendingPayment = order.payments?.find(
       (payment) =>
         payment.status === "PENDING" &&
-        payment.method !== "LOYALTY_POINTS"
+        externalPaymentMethods.includes(payment.method)
     );
 
     if (!pendingPayment || order.status !== "PENDING") {
@@ -153,6 +165,36 @@ export default function OrdersPage() {
         err instanceof Error
           ? err.message
           : "Không thể xác nhận thanh toán."
+      );
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const changeStatus = async (orderId: string, status: string) => {
+    if (!token || busyId) return;
+
+    const confirmed = await confirm(
+      `Xác nhận chuyển trạng thái đơn hàng thành "${
+        statusLabels[status] || status
+      }"?`,
+      "Cập nhật trạng thái đơn hàng"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setBusyId(orderId);
+      setError("");
+      setNotice("");
+
+      await updateOrderStatus(token, orderId, status);
+
+      setNotice("Cập nhật trạng thái đơn hàng thành công.");
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Không thể cập nhật đơn."
       );
     } finally {
       setBusyId("");
@@ -292,8 +334,11 @@ export default function OrdersPage() {
                   const pendingPayment = order.payments?.find(
                     (payment) =>
                       payment.status === "PENDING" &&
-                      payment.method !== "LOYALTY_POINTS"
+                      externalPaymentMethods.includes(payment.method)
                   );
+
+                  const canReportPaymentError =
+                    order.status === "PENDING" && !!pendingPayment;
 
                   return (
                     <tr key={order.id}>
@@ -406,20 +451,26 @@ export default function OrdersPage() {
                             </button>
                           )}
 
+                          {canReportPaymentError && (
+                            <button
+                              className="admin-delete-btn"
+                              disabled={!!busyId}
+                              onClick={() => handlePaymentError(order)}
+                            >
+                              {busyId === order.id
+                                ? "Đang xử lý..."
+                                : "Lỗi thanh toán"}
+                            </button>
+                          )}
+
                           {(transitions[order.status] || []).map((next) => (
                             <button
                               key={next}
-                              className={
-                                next === "CANCELLED"
-                                  ? "admin-delete-btn"
-                                  : "admin-quiet-btn"
-                              }
+                              className="admin-quiet-btn"
                               disabled={!!busyId}
                               onClick={() => changeStatus(order.id, next)}
                             >
-                              {next === "CANCELLED"
-                                ? "Hủy đơn"
-                                : statusLabels[next]}
+                              {statusLabels[next]}
                             </button>
                           ))}
                         </div>
