@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
@@ -12,14 +12,42 @@ export default function Header() {
     token,
     name,
     role,
-    setToken,
-    setName,
-    setRole,
+    logout: logoutApp,
   } = useApp();
 
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        accountRef.current &&
+        !accountRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
 
   const roleLabel =
     role === "ADMIN"
@@ -32,19 +60,24 @@ export default function Header() {
 
   const logout = () => {
     setOpen(false);
-    setToken(null);
-    setName("");
-    setRole("CUSTOMER");
+    logoutApp();
     router.replace("/");
+    router.refresh();
   };
 
   return (
-    <header className="header">
-      <Link className="brand" href="/">
-        ☕ Brew<span>Lite</span>
-      </Link>
+    <header className={`header ${pathname.startsWith("/admin") ? "admin-header" : ""}`}>
+      {pathname.startsWith("/admin") ? (
+        <Link href="/" className="admin-header-home">
+          ← Quay về trang chủ
+        </Link>
+      ) : (
+        <Link className="brand" href="/">
+          ☕ Brew<span>Lite</span>
+        </Link>
+      )}
 
-      <div className="account-wrapper">
+      <div className="account-wrapper" ref={accountRef}>
         {token ? (
           <>
             <button
@@ -111,7 +144,7 @@ export default function Header() {
 
                 {(role === "ADMIN" || role === "STAFF") && (
                   <Link
-                    href="/admin"
+                    href="/admin/inventory"
                     className="account-menu-item"
                     onClick={() => setOpen(false)}
                   >

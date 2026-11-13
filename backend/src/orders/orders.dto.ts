@@ -1,8 +1,11 @@
+
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -51,4 +54,18 @@ export class CreateOrderDto {
 export class UpdateOrderStatusDto {
   @IsEnum(OrderStatus)
   status: OrderStatus;
+}
+
+export class CancelOrderDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason: string;
+}
+
+export class RequestCancellationDto extends CancelOrderDto {}
+
+export class ReviewCancellationDto {
+  @IsBoolean()
+  approved: boolean;
 }

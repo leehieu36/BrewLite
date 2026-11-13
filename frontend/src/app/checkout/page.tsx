@@ -2,16 +2,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useApp } from "@/context/AppContext";
-import { order, pay } from "@/lib/api";
+import { order, pay, getMyProfile } from "@/lib/api";
 import type { Method } from "@/lib/types";
 
 const money = (n: number) => n.toLocaleString("vi-VN") + "đ";
 const paymentOptions: { method: Method; title: string; description: string }[] = [
-  { method: "COD", title: "Thanh toán khi nhận hàng", description: "Trả tiền mặt khi nhận đồ uống." },
+  { method: "LOYALTY_POINTS", title: "Thanh toán bằng điểm", description: "Sử dụng điểm tích lũy BrewLite để thanh toán." },
   { method: "BANK_TRANSFER", title: "Chuyển khoản ngân hàng", description: "Quét mã QR chuyển khoản." },
   { method: "VNPAY", title: "Ví VNPay", description: "Quét mã QR bằng ứng dụng VNPay." },
   { method: "MOMO", title: "Ví MoMo", description: "Quét mã QR bằng ứng dụng MoMo." },
@@ -19,12 +19,53 @@ const paymentOptions: { method: Method; title: string; description: string }[] =
 
 export default function Checkout() {
   const { cart, total, token, clear } = useApp();
-  const [method, M] = useState<Method>("COD");
+  const [method, M] = useState<Method>("LOYALTY_POINTS");
   const [error, E] = useState("");
   const [busy, B] = useState(false);
+  const [currentPoints, setCurrentPoints] = useState(0);
+  const [loadingPoints, setLoadingPoints] = useState(true);
+  const [pointsError, setPointsError] = useState(false);
+
+  const pointsRequired = Math.ceil(total / 500);
+  const pointsMissing = Math.max(0, pointsRequired - currentPoints);
+  const enoughPoints = currentPoints >= pointsRequired;
+
   const router = useRouter();
   const selectedPayment = paymentOptions.find((option) => option.method === method)!;
   const qrValue = `BREWLITE|${method}|${total}|VND|PAYMENT`;
+
+  useEffect(() => {
+    if (!token) {
+      setLoadingPoints(false);
+      return;
+    }
+
+    let active = true;
+
+    setLoadingPoints(true);
+    setPointsError(false);
+
+    getMyProfile(token)
+      .then((profile) => {
+        if (active) {
+          setCurrentPoints(profile.loyaltyPoints);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPointsError(true);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingPoints(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   async function place() {
     E("");
@@ -37,6 +78,23 @@ export default function Checkout() {
     if (!cart.length) {
       E("Giỏ hàng đang trống.");
       return;
+    }
+
+    if (method === "LOYALTY_POINTS") {
+      if (loadingPoints) {
+        E("Đang tải thông tin điểm.");
+        return;
+      }
+
+      if (pointsError) {
+        E("Không thể tải thông tin điểm. Vui lòng tải lại trang.");
+        return;
+      }
+
+      if (!enoughPoints) {
+        E(`Bạn còn thiếu ${pointsMissing} điểm để thanh toán.`);
+        return;
+      }
     }
 
     B(true);
@@ -58,10 +116,9 @@ export default function Checkout() {
         throw Error("API tạo đơn chưa trả về id.");
       }
 
-      const status = method === "COD" ? "PENDING" : "PAID";
-      if (method !== "COD") {
-        await pay(id, method, token);
-      }
+      const status = method === "LOYALTY_POINTS" ? "PAID" : "PENDING";
+
+      await pay(id, method, token);
 
       localStorage.setItem(
         "bl_last_order",
@@ -114,7 +171,49 @@ export default function Checkout() {
           ))}
           </div>
 
-          {method !== "COD" && (
+          {method === "LOYALTY_POINTS" && (
+            <div className="qr-panel">
+              <h3>Thông tin điểm thưởng</h3>
+
+              <p>
+                Điểm hiện có:
+                <strong>
+                  {loadingPoints
+                    ? "Đang tải..."
+                    : pointsError
+                      ? "Không tải được"
+                      : `${currentPoints.toLocaleString("vi-VN")} điểm`}
+                </strong>
+              </p>
+
+              <p>
+                Tổng đơn hàng:
+                <strong>{money(total)}</strong>
+              </p>
+
+              <p>
+                Điểm cần thanh toán:
+                <strong>{pointsRequired.toLocaleString("vi-VN")} điểm</strong>
+              </p>
+
+              {!loadingPoints && !pointsError && !enoughPoints && (
+                <p className="error">
+                  Bạn còn thiếu {pointsMissing.toLocaleString("vi-VN")} điểm.
+                </p>
+              )}
+
+              {!loadingPoints && !pointsError && enoughPoints && (
+                <p>
+                  Điểm còn lại sau thanh toán:
+                  <strong>
+                    {(currentPoints - pointsRequired).toLocaleString("vi-VN")} điểm
+                  </strong>
+                </p>
+              )}
+            </div>
+          )}
+
+          {method !== "LOYALTY_POINTS" && (
             <div className="qr-panel">
               <h3>Quét mã {selectedPayment.title}</h3>
               <div className="qr-code">
@@ -133,13 +232,13 @@ export default function Checkout() {
             type="button"
             className="btn wide"
             onClick={place}
-            disabled={busy || !cart.length}
+            disabled={ busy || !cart.length || (method === "LOYALTY_POINTS" && (loadingPoints || pointsError || !enoughPoints))}
           >
             {busy
               ? "Đang xử lý..."
-              : method === "COD"
-                ? "Đặt hàng, thanh toán khi nhận ↗"
-                : "Tôi đã chuyển khoản, xác nhận ↗"}
+              : method === "LOYALTY_POINTS"
+                ? "Đặt hàng, sử dụng điểm ↗"
+                : "Tôi đã thanh toán, gửi yêu cầu xác nhận ↗"}
           </button>
 
           {!token && (

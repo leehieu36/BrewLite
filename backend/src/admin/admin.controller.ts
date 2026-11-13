@@ -22,14 +22,48 @@ export class AdminController {
 
   @Get('users')
   @Roles(UserRole.ADMIN)
-  users(@Req() req: AdminRequest, @Query('page') page = '1', @Query('limit') limit = '25', @Query('q') q?: string) {
-    return this.admin.users(Number(page), Number(limit), q, req.user.id, { ipAddress: req.ip, userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined });
+  users(
+    @Req() req: AdminRequest,
+    @Query('page') page = '1',
+    @Query('limit') limit = '25',
+    @Query('q') q?: string,
+  ) {
+    return this.admin.users(
+      Number(page),
+      Number(limit),
+      q,
+      req.user.id,
+      req.user.role,
+      {
+        ipAddress: req.ip,
+        userAgent:
+          typeof req.headers['user-agent'] === 'string'
+            ? req.headers['user-agent']
+            : undefined,
+      },
+    );
   }
 
   @Patch('users/:id/role')
   @Roles(UserRole.ADMIN)
-  updateUserRole(@Req() req: AdminRequest, @Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
-    return this.admin.updateUserRole(req.user.id, id, dto.role, { ipAddress: req.ip, userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined });
+  updateUserRole(
+    @Req() req: AdminRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserRoleDto,
+  ) {
+    return this.admin.updateUserRole(
+      req.user.id,
+      req.user.role,
+      id,
+      dto.role,
+      {
+        ipAddress: req.ip,
+        userAgent:
+          typeof req.headers['user-agent'] === 'string'
+            ? req.headers['user-agent']
+            : undefined,
+      },
+    );
   }
 
   @Get('summary')

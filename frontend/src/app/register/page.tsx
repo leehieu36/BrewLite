@@ -58,7 +58,7 @@ export default function Register() {
       <label>Xác nhận mật khẩu<input type="password" value={confirm} onChange={e => C(e.target.value)} minLength={8} maxLength={72} required />
       </label>{error && <p className="error">{error}
       </p>}
-      <button className="btn wide" disabled={loading}>{loading ? "Đang tạo tài khoản..." : "Tạo tài khoản ↗"}
+      <button className="btn wide" disabled={loading}>{loading ? "Đang tạo tài khoản..." : "Tạo tài khoản"}
       </button>
       <p>Đã có tài khoản? <Link href="/login">Đăng nhập</Link>
       </p>

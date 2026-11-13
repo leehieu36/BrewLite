@@ -1,3 +1,4 @@
+
 import {
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import { PrismaService } from '../database/prisma.service';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
+  // Danh sách sản phẩm dành cho khách hàng
   async list(query: { q?: string; page?: number; limit?: number }) {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
@@ -15,9 +17,53 @@ export class ProductsService {
     const where = {
       isActive: true,
       ...(query.q
-        ? { name: { contains: query.q.trim(), mode: 'insensitive' as const } }
+        ? {
+            name: {
+              contains: query.q.trim(),
+              mode: 'insensitive' as const,
+            },
+          }
         : {}),
     };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.product.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // Danh sách tất cả sản phẩm dành cho ADMIN
+  async managementList(query: {
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+
+    const where = query.q
+      ? {
+          name: {
+            contains: query.q.trim(),
+            mode: 'insensitive' as const,
+          },
+        }
+      : {};
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
@@ -70,13 +116,14 @@ export class ProductsService {
       price?: number;
       imageUrl?: string;
       stock?: number;
+      isActive?: boolean;
     },
   ) {
     const product = await this.prisma.product.findUnique({
       where: { id },
     });
 
-    if (!product || !product.isActive) {
+    if (!product) {
       throw new NotFoundException('Không tìm thấy sản phẩm');
     }
 
@@ -86,12 +133,13 @@ export class ProductsService {
     });
   }
 
+  // Xóa mềm sản phẩm
   async remove(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
     });
 
-    if (!product || !product.isActive) {
+    if (!product) {
       throw new NotFoundException('Không tìm thấy sản phẩm');
     }
 

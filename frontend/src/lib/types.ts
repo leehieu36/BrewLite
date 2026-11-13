@@ -1,5 +1,5 @@
 export type Size = "S" | "M" | "L";
-export type Method = "COD" | "BANK_TRANSFER" | "VNPAY" | "MOMO";
+export type Method = "LOYALTY_POINTS" | "BANK_TRANSFER" | "VNPAY" | "MOMO";
 
 export type Product = {
   id: string;
@@ -8,6 +8,7 @@ export type Product = {
   image?: string;
   description?: string;
   category?: string;
+  stock: number;
 };
 
 export type Item = {

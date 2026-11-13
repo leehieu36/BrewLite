@@ -102,6 +102,15 @@ export default function Detail() {
 
         <p>{product.description}</p>
 
+        <div className="detail-stock">
+          <span>Tình trạng tồn kho</span>
+          <strong>
+            {product.stock > 0
+              ? `Còn ${product.stock} sản phẩm`
+              : "Hết hàng"}
+          </strong>
+        </div>
+
         <h3>
           {money(product.price)}
           <small> · Giá size S</small>
@@ -168,8 +177,9 @@ export default function Detail() {
 
                 <button
                   type="button"
+                  disabled={quantity >= product.stock}
                   onClick={() =>
-                    setQuantity((current) => current + 1)
+                    setQuantity((current) => Math.min(product.stock, current + 1))
                   }
                 >
                   +
@@ -185,12 +195,13 @@ export default function Detail() {
             <button
               type="button"
               className="btn wide"
+              disabled={product.stock <= 0 || quantity > product.stock}
               onClick={() => {
                 add(product, size, selectedToppings, quantity);
                 setMessage("Đã thêm sản phẩm vào giỏ hàng.");
               }}
             >
-              Thêm vào giỏ hàng
+              {product.stock <= 0 ? "Hết hàng" : "Thêm vào giỏ hàng"}
             </button>
 
             {message && (
@@ -206,16 +217,7 @@ export default function Detail() {
               </p>
             )}
           </>
-        ) : (
-          <div className="detail-view-only">
-            <hr />
-            <p>
-              {role === "ADMIN" || role === "STAFF"
-                ? "Sản phẩm đang được hiển thị ở chế độ xem."
-                : "Đăng nhập bằng tài khoản khách hàng để đặt món."}
-            </p>
-          </div>
-        )}
+        ) : null }
       </section>
     </div>
   );

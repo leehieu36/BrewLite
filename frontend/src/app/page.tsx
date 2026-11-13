@@ -115,8 +115,14 @@ export default function Home() {
                     </p>
 
                     <div className="price">
-                      {money(p.price)}
+                      <span>{money(p.price)}</span>
                       <Link href={"/menu/" + p.id}>↗</Link>
+                    </div>
+
+                    <div className="stock-info">
+                      {p.stock > 0
+                        ? `Còn ${p.stock} sản phẩm`
+                        : "Hết hàng"}
                     </div>
                   </div>
                 </article>

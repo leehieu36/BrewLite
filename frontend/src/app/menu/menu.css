@@ -272,3 +272,26 @@
     height: 230px;
   }
 }
+
+.detail-stock {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 18px 0;
+  padding: 14px 16px;
+  background: #f5f0e9;
+  border: 1px solid #e7ded5;
+  color: #493529;
+  font-size: 14px;
+}
+
+.detail-stock strong {
+  color: #98765c;
+}
+
+.stock-info {
+  margin-top: 10px;
+  color: #98765c;
+  font-size: 13px;
+  font-weight: 600;
+}
